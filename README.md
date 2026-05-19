@@ -1,157 +1,211 @@
-# 🔍 TalentScan AI
+# TalentScan AI 🎯
 
-[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat&logo=python&logoColor=white)](https://python.org)
-[![Streamlit](https://img.shields.io/badge/Streamlit-1.35+-FF4B4B?style=flat&logo=streamlit&logoColor=white)](https://streamlit.io)
-[![LangChain](https://img.shields.io/badge/LangChain-0.2+-1C3C3C?style=flat&logo=langchain&logoColor=white)](https://langchain.com)
-[![Groq](https://img.shields.io/badge/Groq-LLaMA%203%2070B-F55036?style=flat)](https://groq.com)
-[![FAISS](https://img.shields.io/badge/FAISS-Vector%20Search-0467DF?style=flat)](https://faiss.ai)
-[![License](https://img.shields.io/badge/License-MIT-green?style=flat)](LICENSE)
+> **AI-powered resume screening** — RAG pipeline that ingests candidate PDFs, scores job-fit, and delivers structured analysis in under 3 seconds.
 
-> **LLM-powered resume analyser built on a full RAG pipeline.**  
-> PDF → chunk → embed → FAISS retrieve → LLaMA 3 70B → structured ATS JSON report — all in **under 3 seconds**.
+[![Python](https://img.shields.io/badge/Python-3.10+-blue?style=flat-square&logo=python)](https://python.org)
+[![LLaMA 3](https://img.shields.io/badge/LLaMA_3-70B-purple?style=flat-square)](https://ai.meta.com/llama/)
+[![Groq](https://img.shields.io/badge/Groq-Accelerated-orange?style=flat-square)](https://groq.com)
+[![FAISS](https://img.shields.io/badge/FAISS-Vector_Store-green?style=flat-square)](https://faiss.ai)
+[![Streamlit](https://img.shields.io/badge/Streamlit-Dashboard-red?style=flat-square)](https://streamlit.io)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
 
 ---
 
-## ✨ Features
+## What it does
 
-| Feature | Detail |
+HR teams spend hours manually screening resumes. TalentScan AI reduces that to **under 3 seconds per candidate** — with zero data storage and full privacy.
+
+Upload a resume PDF + paste a job description → get back:
+
+- **ATS compatibility score** (0–100)
+- **Matched skills** against the JD
+- **Skill gap report** — what's missing
+- **Improvement suggestions** — actionable, specific
+- All output structured as **JSON** for downstream processing
+
+---
+
+## Architecture
+
+```
+Candidate PDF
+      │
+      ▼
+┌─────────────────┐
+│  PyMuPDF Parser │  ← Extract raw text from PDF
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────────┐
+│  Text Chunker        │  ← Split into semantic chunks
+│  + Embedder          │  ← Sentence-transformer embeddings
+└────────┬────────────┘
+         │
+         ▼
+┌─────────────────┐
+│  FAISS Vector   │  ← Store & index all chunks
+│  Store          │
+└────────┬────────┘
+         │  top-k semantic retrieval
+         ▼
+┌──────────────────────────┐
+│  LLaMA 3 70B via Groq    │  ← Single inference pass
+│  (hardware-accelerated)  │  ← Prompt: resume chunks + JD
+└────────┬─────────────────┘
+         │
+         ▼
+┌──────────────────────┐
+│  Structured JSON     │  ← ATS score, skills, gaps,
+│  Output              │     suggestions
+└────────┬─────────────┘
+         │
+         ▼
+┌──────────────────────┐
+│  Streamlit Dashboard │  ← HR-facing UI
+└──────────────────────┘
+```
+
+**Key design choices:**
+- **Groq inference** for hardware-accelerated LLM calls — achieves sub-3s end-to-end latency
+- **FAISS** for in-memory vector search — no external vector DB dependency
+- **Single inference pass** — ATS score + skills + gaps + suggestions in one LLM call, structured as JSON
+- **Zero data storage** — resumes are processed in memory only, never persisted
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
 |---|---|
-| 📄 PDF Parsing | PyMuPDF extracts & cleans text from any resume layout |
-| 🔗 RAG Pipeline | Word-level chunking → sentence-transformer embeddings → FAISS cosine retrieval |
-| 🤖 LLM Analysis | LLaMA 3 70B via Groq API — structured JSON output in a single inference pass |
-| 📊 ATS Report | Score, matched skills, skill gaps, fit assessment, improvement suggestions |
-| ⚡ Sub-3s Latency | Groq hardware-accelerated inference; typical end-to-end < 3 seconds |
-| 🔒 Privacy First | Zero data storage — all processing happens in-session memory |
-| 🎛 Interactive UI | Dark-themed Streamlit dashboard with skill pills, score ring, rec badge |
+| LLM | LLaMA 3 70B (via Groq API) |
+| Orchestration | LangChain |
+| Vector Store | FAISS |
+| PDF Parsing | PyMuPDF |
+| Embeddings | Sentence Transformers |
+| UI | Streamlit |
+| Language | Python 3.10+ |
 
 ---
 
-## 🏗 Architecture
+## Getting Started
 
-```
-PDF Resume
-    │
-    ▼
-resume_parser.py   ── PyMuPDF ──► full text ──► word-based chunks (400w, 80w overlap)
-    │
-    ▼
-embeddings.py      ── sentence-transformers (all-MiniLM-L6-v2)
-                   ── FAISS IndexFlatIP (cosine via L2-normalised inner product)
-                   ── retrieve top-k chunks matching job description query
-    │
-    ▼
-llm_chain.py       ── LangChain ChatPromptTemplate
-                   ── Groq API → LLaMA 3 70B (temp=0.2, max_tokens=1800)
-                   ── Single-pass structured JSON output
-    │
-    ▼
-app.py             ── Streamlit dark-themed dashboard
-                   ── Score ring · skill pills · rec badge · latency footer
-```
-
----
-
-## 📁 Project Structure
-
-```
-TalentScan-AI/
-├── app.py              # Streamlit dashboard (main entry point)
-├── resume_parser.py    # PDF text extraction & chunking (PyMuPDF)
-├── embeddings.py       # FAISS vector index build & retrieval
-├── llm_chain.py        # LangChain + Groq LLM chain (structured JSON)
-├── requirements.txt    # Python dependencies
-├── .env.example        # Environment variables template
-├── .gitignore
-└── README.md
-```
-
----
-
-## 🚀 Quick Start
-
-### 1. Clone & install
+### Prerequisites
 
 ```bash
-git clone https://github.com/karansiva14/TalentScan-AI.git
-cd TalentScan-AI
-
-python -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
-
+python >= 3.10
 pip install -r requirements.txt
 ```
 
-### 2. Set your Groq API key
+### Installation
 
 ```bash
+# Clone the repo
+git clone https://github.com/karansiva14/talentscan-ai.git
+cd talentscan-ai
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Set up your Groq API key
 cp .env.example .env
-# Edit .env — paste your key from https://console.groq.com
+# Add your key: GROQ_API_KEY=your_key_here
 ```
 
-Or enter the key directly in the Streamlit sidebar at runtime (no `.env` needed).
+Get a free Groq API key at [console.groq.com](https://console.groq.com).
 
-### 3. Run
+### Run
 
 ```bash
 streamlit run app.py
 ```
 
-Open **http://localhost:8501** → upload a PDF resume → paste a job description → click **Analyse Resume**.
+Open `http://localhost:8501` in your browser.
 
 ---
 
-## 🌐 Deploy on Hugging Face Spaces
+## Usage
 
-1. Create a new Space → SDK: **Streamlit**
-2. Push this repo to the Space
-3. Add `GROQ_API_KEY` as a **Secret** in Space Settings
-4. Done — public URL in < 2 minutes
+1. Upload a candidate's resume as a PDF
+2. Paste the job description into the text field
+3. Click **Analyze**
+4. Get structured results in < 3 seconds
 
----
-
-## 📦 LLM Output Schema
+### Sample Output (JSON)
 
 ```json
 {
   "ats_score": 82,
-  "score_rationale": "Strong alignment on core ML stack. Minor gaps in cloud tooling.",
-  "matched_skills": ["Python", "TensorFlow", "LangChain", "FAISS"],
-  "missing_skills": ["AWS SageMaker", "Docker"],
-  "experience_fit": "Strong — internship and projects directly match role requirements.",
-  "education_fit": "Strong — B.E. ECE + IIT Minor in AI/DS exceeds minimum requirements.",
-  "improvement_suggestions": [
-    "Add Docker and containerisation experience to resume.",
-    "Quantify model performance metrics (accuracy, latency) in project bullets.",
-    "Include a cloud deployment section highlighting Hugging Face Spaces deployment."
+  "matched_skills": [
+    "Python", "Machine Learning", "LangChain", "RAG", "FAISS", "NLP"
   ],
-  "hiring_recommendation": "Highly Recommended",
-  "summary": "Strong fresher candidate with hands-on LLM/RAG experience..."
+  "skill_gaps": [
+    "Docker / containerization",
+    "MLOps / model serving (FastAPI, BentoML)",
+    "Cloud deployment (AWS SageMaker / GCP Vertex AI)"
+  ],
+  "improvement_suggestions": [
+    "Add a Docker container for the Streamlit app to demonstrate deployment readiness",
+    "Quantify project impact with specific metrics (latency, accuracy, dataset size)",
+    "Include cloud platform experience — most production ML roles require AWS or GCP"
+  ],
+  "summary": "Strong candidate for junior AI/ML roles with solid RAG and LLM experience. Skill gaps are primarily in production deployment and MLOps tooling."
 }
 ```
 
 ---
 
-## 🛠 Tech Stack
+## Performance
 
-| Layer | Technology |
+| Metric | Value |
 |---|---|
-| LLM | LLaMA 3 70B via Groq API |
-| Orchestration | LangChain 0.2 |
-| Vector DB | FAISS (CPU, cosine similarity) |
-| Embeddings | sentence-transformers `all-MiniLM-L6-v2` |
-| PDF Parsing | PyMuPDF (fitz) |
-| UI | Streamlit 1.35+ |
-| Language | Python 3.11+ |
+| End-to-end latency | < 3 seconds |
+| LLM | LLaMA 3 70B |
+| Inference backend | Groq (hardware-accelerated) |
+| Data storage | Zero — fully in-memory |
+| Supported input | PDF resumes |
 
 ---
 
-## 👤 Author
+## Project Structure
 
-**Karan S H** · [LinkedIn](https://linkedin.com/in/karan1414) · [GitHub](https://github.com/karansiva14)  
-B.E. ECE · IIT Minor in AI & Data Science
+```
+talentscan-ai/
+├── app.py                  # Streamlit UI entry point
+├── pipeline/
+│   ├── parser.py           # PyMuPDF PDF extractor
+│   ├── chunker.py          # Text chunker + embedder
+│   ├── vector_store.py     # FAISS index builder & retriever
+│   └── analyzer.py         # LLaMA 3 prompt + JSON parser
+├── prompts/
+│   └── analysis_prompt.txt # System + user prompt templates
+├── requirements.txt
+├── .env.example
+└── README.md
+```
 
 ---
 
-## 📄 License
+## Roadmap
 
-MIT — free to use, modify, and distribute.
+- [ ] Multi-resume batch screening (upload 10+ PDFs at once)
+- [ ] Job description scraper (paste a LinkedIn URL instead of text)
+- [ ] Candidate ranking / leaderboard across multiple resumes
+- [ ] Swap-ready model support (any GGUF-compatible model)
+- [ ] REST API endpoint (FastAPI wrapper)
+- [ ] Export report as PDF
+
+---
+
+## About
+
+Built by **Karan S H** — AI/ML Engineer with an IIT Minor in Artificial Intelligence & Data Science.
+
+- LinkedIn: [linkedin.com/in/karan1414](https://linkedin.com/in/karan1414)
+- GitHub: [github.com/karansiva14](https://github.com/karansiva14)
+- Email: karansmiley14@gmail.com
+
+---
+
+## License
+
+MIT License — free to use, modify, and distribute. See [LICENSE](LICENSE) for details.
